@@ -3,8 +3,6 @@
 A production-grade Task Management API built with FastAPI, PostgreSQL, SQLAlchemy, and Alembic.
 This is the backend for the Week 5 Flutter capstone client.
 
-**Author:** Muhammad Shehryar Hashmi — Full-Stack Engineering: FastAPI Backend and Flutter Client
-**Week:** 3 of 6 — FastAPI Deep Dive
 
 ---
 
