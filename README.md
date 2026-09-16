@@ -9,8 +9,8 @@ This is the backend for the Week 5 Flutter capstone client.
 **Author:** Muhammad Shehryar Hashmi . Full-Stack Engineering: FastAPI Backend and Flutter Client
 **Week:** 4 of 8 , Docker and Deployment
 
-**Live API:** `PUT_YOUR_RAILWAY_OR_RENDER_URL_HERE`
-**Live docs:** `PUT_YOUR_RAILWAY_OR_RENDER_URL_HERE/docs`
+**Live API:** `https://task-management-api1-production.up.railway.app`
+**Live docs:** `https://task-management-api1-production.up.railway.app/docs`
 
 ---
 
