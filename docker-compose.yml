@@ -1,0 +1,56 @@
+services:
+  db:
+    image: postgres:16
+    container_name: task_api_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-taskuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-taskpass}
+      POSTGRES_DB: ${POSTGRES_DB:-taskdb}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-taskuser} -d ${POSTGRES_DB:-taskdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    container_name: task_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-taskuser}:${POSTGRES_PASSWORD:-taskpass}@db:5432/${POSTGRES_DB:-taskdb}
+      TEST_DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-taskuser}:${POSTGRES_PASSWORD:-taskpass}@db:5432/${POSTGRES_DB:-taskdb}_test
+      SECRET_KEY: ${SECRET_KEY:-change-this-to-a-long-random-string-in-production}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      REFRESH_TOKEN_EXPIRE_DAYS: 7
+      CORS_ORIGINS: http://localhost:3000,http://localhost:8080
+      ENVIRONMENT: development
+    ports:
+      - "8000:8000"
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: task_api_pgadmin
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+volumes:
+  db_data:
+  pgadmin_data:
