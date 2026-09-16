@@ -1,12 +1,13 @@
 # Task Management API
 
-[![CI](https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME/actions/workflows/ci.yml)
+[![CI](https://github.com/shehryarhashmi800/task-management-api1/actions/workflows/ci.yml/badge.svg)]
+(https://github.com/shehryarhashmi800/task-management-api1/actions/workflows/ci.yml)
 
 A production-grade Task Management API built with FastAPI, PostgreSQL, SQLAlchemy, and Alembic.
 This is the backend for the Week 5 Flutter capstone client.
 
-**Author:** Muhammad Shehryar Hashmi — Full-Stack Engineering: FastAPI Backend and Flutter Client
-**Week:** 4 of 6 — Docker and Deployment
+**Author:** Muhammad Shehryar Hashmi . Full-Stack Engineering: FastAPI Backend and Flutter Client
+**Week:** 4 of 8 , Docker and Deployment
 
 **Live API:** `PUT_YOUR_RAILWAY_OR_RENDER_URL_HERE`
 **Live docs:** `PUT_YOUR_RAILWAY_OR_RENDER_URL_HERE/docs`
