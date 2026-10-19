@@ -1,5 +1,3 @@
-import pytest
-
 def test_register_success(client):
     response = client.post(
         "/api/v1/auth/register",
@@ -97,16 +95,13 @@ def test_get_current_user(client, auth_headers, registered_user):
     assert response.json()["email"] == registered_user["email"]
 
 
-@pytest.mark.skip(reason="Temporarily skipped while fixing authentication status code")
 def test_get_current_user_no_token_fails(client):
     response = client.get("/api/v1/auth/me")
     assert response.status_code == 401
 
 
 def test_get_current_user_invalid_token_fails(client):
-    response = client.get(
-        "/api/v1/auth/me", headers={"Authorization": "Bearer not-a-real-token"}
-    )
+    response = client.get("/api/v1/auth/me", headers={"Authorization": "Bearer not-a-real-token"})
     assert response.status_code == 401
 
 
@@ -120,9 +115,7 @@ def test_refresh_token_success(client, registered_user):
     )
     refresh_token = login_response.json()["refresh_token"]
 
-    response = client.post(
-        "/api/v1/auth/refresh", json={"refresh_token": refresh_token}
-    )
+    response = client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
     assert response.status_code == 200
     assert "access_token" in response.json()
 

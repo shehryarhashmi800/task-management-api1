@@ -1,3 +1,5 @@
+"""Database engine, session factory and the model base class."""
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
@@ -9,10 +11,13 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, futu
 
 
 class Base(DeclarativeBase):
+    """Parent class of every database model."""
+
     pass
 
 
 def get_db():
+    """Give a request its own database session and always close it afterwards."""
     db = SessionLocal()
     try:
         yield db

@@ -4,13 +4,25 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
+from app.core.rate_limit import limiter
 from app.database import Base, get_db
 from app.main import app
+from tests.utils import ensure_database
+
+ensure_database(settings.TEST_DATABASE_URL)
 
 engine = create_engine(settings.TEST_DATABASE_URL, future=True)
-TestingSessionLocal = sessionmaker(
-    autocommit=False, autoflush=False, bind=engine, future=True
-)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)
+
+
+@pytest.fixture(autouse=True)
+def rate_limiting_off_by_default():
+    """Most tests register/login a lot, so rate limiting is off unless a test opts in."""
+    limiter.reset()
+    limiter.enabled = False
+    yield
+    limiter.reset()
+    limiter.enabled = False
 
 
 @pytest.fixture()
@@ -61,7 +73,7 @@ def auth_headers(client, registered_user):
         },
     )
     token = response.json()["access_token"]
-    return {"Authorization": f"Bearer {token }"}
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture()
@@ -77,4 +89,4 @@ def second_user_headers(client):
         json={"email": payload["email"], "password": payload["password"]},
     )
     token = response.json()["access_token"]
-    return {"Authorization": f"Bearer {token }"}
+    return {"Authorization": f"Bearer {token}"}

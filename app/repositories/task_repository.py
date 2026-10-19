@@ -1,5 +1,4 @@
 import uuid
-from typing import List, Optional, Tuple
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -8,11 +7,20 @@ from app.models.task import Task, TaskPriority, TaskStatus
 from app.repositories.base import BaseRepository
 
 
+def _escape_like(text: str) -> str:
+    """Make %, _ and \\ in user input match themselves instead of acting as wildcards."""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 class TaskRepository(BaseRepository[Task]):
+    """Database access for tasks. Every query is scoped to one owner."""
+
     def __init__(self, db: Session):
+        """Create the repository for one database session."""
         super().__init__(Task, db)
 
-    def get_for_owner(self, task_id: uuid.UUID, owner_id: uuid.UUID) -> Optional[Task]:
+    def get_for_owner(self, task_id: uuid.UUID, owner_id: uuid.UUID) -> Task | None:
+        """Return the task only if it belongs to ``owner_id``."""
         stmt = select(Task).where(Task.id == task_id, Task.owner_id == owner_id)
         return self.db.execute(stmt).scalar_one_or_none()
 
@@ -21,14 +29,13 @@ class TaskRepository(BaseRepository[Task]):
         owner_id: uuid.UUID,
         page: int = 1,
         page_size: int = 20,
-        status_filter: Optional[TaskStatus] = None,
-        priority_filter: Optional[TaskPriority] = None,
-        search: Optional[str] = None,
-    ) -> Tuple[List[Task], int]:
+        status_filter: TaskStatus | None = None,
+        priority_filter: TaskPriority | None = None,
+        search: str | None = None,
+    ) -> tuple[list[Task], int]:
+        """Return one page of an owner's tasks (newest first) and the total count."""
         stmt = select(Task).where(Task.owner_id == owner_id)
-        count_stmt = (
-            select(func.count()).select_from(Task).where(Task.owner_id == owner_id)
-        )
+        count_stmt = select(func.count()).select_from(Task).where(Task.owner_id == owner_id)
 
         if status_filter is not None:
             stmt = stmt.where(Task.status == status_filter)
@@ -37,16 +44,12 @@ class TaskRepository(BaseRepository[Task]):
             stmt = stmt.where(Task.priority == priority_filter)
             count_stmt = count_stmt.where(Task.priority == priority_filter)
         if search:
-            like_pattern = f"%{search }%"
-            stmt = stmt.where(Task.title.ilike(like_pattern))
-            count_stmt = count_stmt.where(Task.title.ilike(like_pattern))
+            like_pattern = f"%{_escape_like(search)}%"
+            stmt = stmt.where(Task.title.ilike(like_pattern, escape="\\"))
+            count_stmt = count_stmt.where(Task.title.ilike(like_pattern, escape="\\"))
 
         total = self.db.execute(count_stmt).scalar_one()
 
-        stmt = (
-            stmt.order_by(Task.created_at.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
-        )
+        stmt = stmt.order_by(Task.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
         items = list(self.db.execute(stmt).scalars().all())
         return items, total

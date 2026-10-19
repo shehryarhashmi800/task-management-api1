@@ -1,3 +1,5 @@
+"""Business logic for tasks. Every operation is limited to one owner's tasks."""
+
 import uuid
 from typing import Optional, Tuple
 
@@ -10,15 +12,24 @@ from app.schemas.task import TaskCreate, TaskUpdate
 
 
 class TaskService:
+    """Task operations. Every method is scoped to the owner passed in."""
+
     def __init__(self, db: Session):
+        """Create the service for one database session."""
         self.db = db
         self.tasks = TaskRepository(db)
 
     def create_task(self, owner_id: uuid.UUID, data: TaskCreate) -> Task:
+        """Create a task owned by ``owner_id``."""
         task = Task(owner_id=owner_id, **data.model_dump())
         return self.tasks.create(task)
 
     def get_task(self, task_id: uuid.UUID, owner_id: uuid.UUID) -> Task:
+        """Return the owner's task, or raise NotFoundError.
+
+        A task owned by someone else also raises NotFoundError, so the API never
+        confirms that another user's task exists.
+        """
         task = self.tasks.get_for_owner(task_id, owner_id)
         if not task:
             raise NotFoundError("Task not found")
@@ -33,6 +44,7 @@ class TaskService:
         priority_filter: Optional[TaskPriority] = None,
         search: Optional[str] = None,
     ) -> Tuple[list[Task], int]:
+        """Return one page of the owner's tasks and the total number of matches."""
         return self.tasks.list_for_owner(
             owner_id,
             page=page,
@@ -42,14 +54,14 @@ class TaskService:
             search=search,
         )
 
-    def update_task(
-        self, task_id: uuid.UUID, owner_id: uuid.UUID, data: TaskUpdate
-    ) -> Task:
+    def update_task(self, task_id: uuid.UUID, owner_id: uuid.UUID, data: TaskUpdate) -> Task:
+        """Apply only the fields the client sent to the owner's task."""
         task = self.get_task(task_id, owner_id)
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(task, field, value)
         return self.tasks.update(task)
 
     def delete_task(self, task_id: uuid.UUID, owner_id: uuid.UUID) -> None:
+        """Delete the owner's task."""
         task = self.get_task(task_id, owner_id)
         self.tasks.delete(task)

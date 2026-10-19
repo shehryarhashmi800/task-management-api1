@@ -3,7 +3,11 @@
 !.env.example
 .git
 .gitignore
+.github
 .pytest_cache
+.ruff_cache
+.coverage
+htmlcov
 __pycache__
 *.pyc
 *.pyo
@@ -12,12 +16,8 @@ __pycache__
 venv
 .vscode
 .idea
-*.md
-!README.md
-tests
+docs
 postman_collection.json
 docker-compose.yml
-docker-compose.yaml
 Dockerfile
 .dockerignore
-.github

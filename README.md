@@ -1,354 +1,272 @@
 # Task Management API
 
-[![CI](https://github.com/shehryarhashmi800/task-management-api1/actions/workflows/ci.yml/badge.svg)]
-(https://github.com/shehryarhashmi800/task-management-api1/actions/workflows/ci.yml)
+[![CI](https://github.com/shehryarhashmi800/
+task-management-api1/actions/workflows/ci.yml/badge.svg)](https://github.com/shehryarhashmi800/
+task-management-api1/actions/workflows/ci.yml)
 
-A production-grade Task Management API built with FastAPI, PostgreSQL, SQLAlchemy, and Alembic.
-This is the backend for the Week 5 Flutter capstone client.
+Backend of the Task Manager capstone: a production-hardened REST API built with **FastAPI**,
+**PostgreSQL**, **SQLAlchemy** and **Alembic**. The Flutter client lives in a separate repository
+(`flutter_task_manager`).
 
-**Author:** Muhammad Shehryar Hashmi . Full-Stack Engineering: FastAPI Backend and Flutter Client
-**Week:** 4 of 8 , Docker and Deployment
+| | |
+|---|---|
+| **Live API** | https://invigorating-harmony-production-bb6e.up.railway.app |
+| **Swagger docs** | https://invigorating-harmony-production-bb6e.up.railway.app/docs |
+| **Health check** | https://invigorating-harmony-production-bb6e.up.railway.app/health |
+| **Author** | Muhammad Shehryar Hashmi, Full-Stack Engineering: FastAPI Backend and Flutter Client |
+
 
 **Live API:** `https://invigorating-harmony-production-bb6e.up.railway.app/`
 **Live docs:** `https://invigorating-harmony-production-bb6e.up.railway.app/docs`
 
 ---
 
+![Architecture](docs/architecture.png)
+
+
 ## Features
 
-- Full task CRUD with Pydantic validation and correct HTTP status codes
-- PostgreSQL persistence via SQLAlchemy 2.0, with Alembic migrations
-- JWT authentication: register, login, refresh, current-user (`/me`)
-- Passwords hashed with bcrypt, never stored or returned in plain text
-- Tasks are strictly scoped to their owner — one user cannot see or modify another's tasks
-- Layered architecture: routers → services → repositories → models, with Pydantic schemas at the boundary
-- Custom exception hierarchy with a consistent JSON error shape across the whole API
-- CORS middleware, request-logging middleware, and a `/health` endpoint that checks DB connectivity
-- Pagination + filtering (by status, priority, and title search) on the task list endpoint
-- Role-based access control: an `is_admin` flag gates an admin-only `/api/v1/users` listing
-- 35 automated tests covering success paths, auth failures, cross-user authorization failures,
-  validation errors, and edge cases
+- **Auth:** register, login, refresh and current-user endpoints; JWT access and refresh tokens;
+  bcrypt password hashing.
+- **Tasks:** full CRUD, scoped to the owner (you can never see or edit another user's task);
+  pagination, filtering by status/priority, title search.
+- **Security:** rate limiting on auth, input sanitization, security headers, body-size limit,
+  dependency audit, fail-fast secret check. See [SECURITY.md](SECURITY.md).
+- **Observability:** JSON logs with a UUID request ID on every line, the same ID in the
+  `X-Request-ID` header and in every error body, and Sentry error tracking.
+- **Consistent errors:** every failure has the same JSON shape. See
+  [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#error-shape).
+- **Quality:** 158 tests at 97.6% coverage, ruff lint and format, dead-code check, migrations
+  checked against the models, GitHub Actions CI.
+- **Documented:** every endpoint has a summary, description and documented error responses in
+  Swagger.
 
----
+## Quick start with Docker (recommended)
 
-## Project layout
-
-```
-app/
-  main.py              # FastAPI app, middleware, router registration
-  config.py            # pydantic-settings, reads from .env
-  database.py           # SQLAlchemy engine/session/Base
-  exceptions.py          # Custom exceptions + exception handlers
-  middleware.py           # Request logging middleware
-  core/
-    security.py          # Password hashing, JWT create/decode
-    deps.py               # get_current_user / get_current_admin_user
-  models/                 # SQLAlchemy ORM models (User, Task)
-  schemas/                # Pydantic request/response schemas
-  repositories/            # Data access layer (repository pattern)
-  services/                # Business logic layer
-  routers/                 # HTTP layer (auth, tasks, users, health)
-alembic/
-  env.py, versions/         # Database migrations
-tests/
-  conftest.py                # Fixtures (test DB, test client, auth headers)
-  test_auth.py, test_tasks.py, test_health.py
-requirements.txt
-.env.example
-.env.docker.example
-alembic.ini
-pytest.ini
-Dockerfile
-.dockerignore
-docker-compose.yml
-Makefile
-.github/workflows/ci.yml
-```
-
----
-
-## Run it with Docker (recommended, easiest)
-
-This spins up the API, PostgreSQL, and pgAdmin together with one command. You do not need
-Python or PostgreSQL installed on your machine for this — only Docker.
-
-### 1. Prerequisites
-
-- Docker and Docker Compose installed ([get Docker](https://docs.docker.com/get-docker/))
-
-### 2. Configure environment
+You need Docker Desktop. Nothing else.
 
 ```bash
 cp .env.docker.example .env
-# open .env and change SECRET_KEY to something random, e.g.
-python -c "import secrets; print(secrets.token_urlsafe(48))"
-```
-
-### 3. Start everything
-
-```bash
 make up
 ```
 
-This builds the API image, starts Postgres (with a health check so the API waits for the
-database to actually be ready), runs Alembic migrations automatically, and starts the API.
-It also starts pgAdmin so you can browse the database visually.
+If you do not have `make` (common on Windows), run `docker compose up -d --build` instead.
 
-- API: http://localhost:8000
-- Swagger docs: http://localhost:8000/docs
-- Health check: http://localhost:8000/health
-- pgAdmin: http://localhost:5050 (login with the email/password from your `.env`)
+| What | Where |
+|---|---|
+| API | http://localhost:8000 |
+| Swagger docs | http://localhost:8000/docs |
+| pgAdmin | http://localhost:5050 |
 
-### 4. Other useful commands
-
-```bash
-make logs      # tail logs from all containers
-make migrate   # run alembic migrations manually inside the running api container
-make test      # run the test suite inside the running api container
-make down      # stop and remove containers (data survives, see below)
-```
-
-### 5. Data persistence
-
-Postgres data is stored in a named Docker volume (`db_data`), not inside the container itself.
-That means running `make down` followed by `make up` again brings the containers back with all
-your data intact. Data is only lost if you explicitly remove the volume:
+Migrations run automatically on start. Data lives in the `db_data` volume and survives
+`make down` and `make up`.
 
 ```bash
-docker compose down -v   # this DOES wipe the database volume, use with care
+make logs      # follow the API logs
+make test      # run the whole test suite inside Docker
+make down      # stop (data is kept)
 ```
 
-### How the services talk to each other
+## Quick start without Docker
 
-Inside `docker-compose.yml`, the API connects to Postgres using the **service name** `db` as the
-hostname (`db:5432`), not `localhost`. Docker Compose gives every service its own DNS name on an
-internal network, so `db` resolves to the Postgres container automatically — this is why the
-`DATABASE_URL` inside the compose file points at `@db:5432/...` instead of `@localhost:5432/...`.
-
----
-
-## Setup (without Docker, running Python directly)
-
-### 1. Prerequisites
-
-- Python 3.11+
-- PostgreSQL 14+ running locally (or reachable over the network)
-
-### 2. Create the databases
-
-```bash
-psql -U postgres -c "CREATE USER taskuser WITH PASSWORD 'taskpass';"
-psql -U postgres -c "CREATE DATABASE taskdb OWNER taskuser;"
-psql -U postgres -c "CREATE DATABASE taskdb_test OWNER taskuser;"
-```
-
-(Match these to whatever you put in `.env` — the names above match `.env.example`.)
-
-### 3. Install dependencies
+You need Python 3.12 and PostgreSQL 16.
 
 ```bash
 python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### 4. Configure environment
-
-```bash
-cp .env.example .env
-# Edit .env: set DATABASE_URL, TEST_DATABASE_URL, and a real SECRET_KEY
-```
-
-Generate a strong `SECRET_KEY` with:
-
-```bash
-python -c "import secrets; print(secrets.token_urlsafe(48))"
-```
-
-### 5. Run migrations
-
-```bash
+source venv/bin/activate            # Windows: venv\Scripts\activate
+pip install -r requirements-dev.txt
+cp .env.example .env                # then edit DATABASE_URL if needed
+createdb taskdb                     # or create it in pgAdmin
 alembic upgrade head
-```
-
-### 6. Run the server
-
-```bash
 uvicorn app.main:app --reload
 ```
 
-- API root: http://localhost:8000/
-- Interactive docs (Swagger): http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-- Health check: http://localhost:8000/health
+## Using the API in Swagger
 
-### 7. Run the tests
-
-Tests run against `TEST_DATABASE_URL` (a separate database from your dev data — tables are
-dropped and recreated per test):
-
-```bash
-pytest
-```
-
----
-
-## Authentication flow
-
-1. `POST /api/v1/auth/register` — create an account (email, username, password)
-2. `POST /api/v1/auth/login` — exchange email + password for an `access_token` + `refresh_token`
-3. Include `Authorization: Bearer <access_token>` on every protected request
-4. When the access token expires (default 30 min), call `POST /api/v1/auth/refresh` with the
-   `refresh_token` (default 7-day lifetime) to get a new access token — no need to log in again
-5. `GET /api/v1/auth/me` returns the currently authenticated user
-
-Access tokens and refresh tokens are distinct JWT types (checked via a `type` claim), so a
-refresh token can't be used to authenticate a normal request and vice versa.
-
----
+1. Open `/docs`.
+2. `POST /api/v1/auth/register` then **Try it out** to create an account.
+3. `POST /api/v1/auth/login` and copy the `access_token` from the response.
+4. Click **Authorize** (top right), paste the token, click **Authorize**.
+5. Every padlock endpoint now works. When the token expires (30 minutes), use
+   `POST /api/v1/auth/refresh`.
 
 ## Endpoints
 
-### Health
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| POST | `/api/v1/auth/register` | no | rate limited |
+| POST | `/api/v1/auth/login` | no | rate limited |
+| POST | `/api/v1/auth/refresh` | no | rate limited |
+| GET | `/api/v1/auth/me` | yes | current user |
+| POST | `/api/v1/tasks` | yes | |
+| GET | `/api/v1/tasks` | yes | `page`, `page_size` (max 100), `status`, `priority`, `search` |
+| GET | `/api/v1/tasks/{id}` | yes | `404` if not yours |
+| PUT / PATCH | `/api/v1/tasks/{id}` | yes | only the fields you send change |
+| DELETE | `/api/v1/tasks/{id}` | yes | `204` |
+| GET | `/api/v1/users` | admin | `skip`, `limit` |
+| GET | `/health` | no | `503` if the database is down |
 
-| Method | Path      | Auth | Description                          |
-|--------|-----------|------|---------------------------------------|
-| GET    | `/`       | No   | Root — service status + docs link     |
-| GET    | `/health` | No   | Health check, includes DB connectivity |
+A Postman collection with every request is in `postman_collection.json` (import it and set the
+`base_url` variable).
 
-### Auth (`/api/v1/auth`)
-
-| Method | Path       | Auth | Description                                  |
-|--------|------------|------|------------------------------------------------|
-| POST   | `/register`| No   | Create a new user account                      |
-| POST   | `/login`   | No   | Log in, returns access + refresh tokens        |
-| POST   | `/refresh` | No   | Exchange a refresh token for a new access token |
-| GET    | `/me`      | Yes  | Get the current authenticated user             |
-
-### Tasks (`/api/v1/tasks`) — all require auth, all scoped to the caller
-
-| Method | Path         | Description                                                        |
-|--------|--------------|----------------------------------------------------------------------|
-| POST   | ``           | Create a task                                                        |
-| GET    | ``           | List the caller's tasks. Query params: `page`, `page_size`, `status`, `priority`, `search` |
-| GET    | `/{task_id}` | Get one task (404 if it doesn't exist or belongs to someone else)    |
-| PUT    | `/{task_id}` | Full update                                                           |
-| PATCH  | `/{task_id}` | Partial update                                                        |
-| DELETE | `/{task_id}` | Delete a task (204 No Content)                                        |
-
-### Users (`/api/v1/users`) — admin only (RBAC stretch goal)
-
-| Method | Path | Auth        | Description                    |
-|--------|------|-------------|----------------------------------|
-| GET    | ``   | Admin only  | List all users in the system     |
-
----
-
-## Error shape
-
-Every error response — validation failures, auth errors, not-found, conflicts, and unhandled
-server errors — comes back in the same JSON shape:
+### Example: a page of tasks
 
 ```json
 {
-  "error": "not_found",
-  "message": "Task not found",
-  "details": null
-}
-```
-
-Validation errors additionally populate `details` with one entry per invalid field:
-
-```json
-{
-  "error": "validation_error",
-  "message": "One or more fields failed validation",
-  "details": [
-    {"field": "password", "message": "password must be at least 8 characters long"}
+  "total": 42,
+  "page": 1,
+  "page_size": 20,
+  "has_more": true,
+  "items": [
+    { "id": "…", "title": "Buy milk", "status": "todo", "priority": "medium", "…": "…" }
   ]
 }
 ```
 
----
+## Configuration
 
-## Task fields
+All settings are environment variables (a `.env` file is read in development).
 
-| Field         | Type                                  | Notes                          |
-|---------------|----------------------------------------|----------------------------------|
-| `title`       | string, 1–200 chars                    | required                        |
-| `description` | string or null                          | optional                        |
-| `status`      | `todo` \| `in_progress` \| `done`      | defaults to `todo`               |
-| `priority`    | `low` \| `medium` \| `high`             | defaults to `medium`             |
-| `due_date`    | ISO 8601 datetime or null               | optional                        |
+| Variable | Default | What it does |
+|---|---|---|
+| `DATABASE_URL` | local Postgres | Where the data lives |
+| `SECRET_KEY` | dev placeholder | Signs JWTs. **Production refuses to start unless this is 32+ random characters** |
+| `ENVIRONMENT` | `development` | `production` turns on HSTS and the secret check |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Access token lifetime |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | `7` | Refresh token lifetime |
+| `CORS_ORIGINS` | localhost | Comma-separated allowed browser origins |
+| `LOG_LEVEL` / `LOG_FORMAT` | `INFO` / `json` | `LOG_FORMAT=text` is easier to read locally |
+| `SENTRY_DSN` | empty | Turns Sentry on when set |
+| `SENTRY_TRACES_SAMPLE_RATE` | `0.0` | Performance tracing sample rate |
+| `RATE_LIMIT_ENABLED` | `true` | Master switch |
+| `RATE_LIMIT_LOGIN` / `_REGISTER` / `_REFRESH` | `5/minute` / `5/minute` / `30/minute` | Per-IP limits |
+| `TRUST_PROXY_HEADERS` | on in production | Read the client IP from `X-Forwarded-For` |
+| `MAX_REQUEST_BODY_BYTES` | `1000000` | Larger bodies get `413` |
+| `ENABLE_DEBUG_ROUTES` | `false` | Enables the deliberate-error route used to test Sentry |
 
----
-
-## Design notes
-
-- **Repository pattern**: routers never touch SQLAlchemy directly. Routers call services, services
-  call repositories, repositories talk to the database. This keeps business rules (like "you can
-  only see your own tasks") in one place (`TaskService`/`TaskRepository`) rather than scattered
-  across endpoints.
-- **Ownership scoping**: `TaskRepository.get_for_owner` filters by `owner_id` at the query level,
-  so a request for another user's task simply returns nothing — the service layer turns that into
-  a 404, which also avoids leaking whether a given task ID exists at all.
-- **Migrations are hand-authored** for the initial schema (rather than autogenerated) so that the
-  Postgres `ENUM` types for `status`/`priority` are created explicitly and safely reversible.
-
-## Continuous Integration
-
-Every push and pull request to `main` runs a GitHub Actions pipeline (`.github/workflows/ci.yml`)
-with three jobs, each depending on the last:
-
-1. **lint** — runs `ruff check` over `app/` and `tests/`
-2. **test** — spins up a real PostgreSQL 16 service container, runs the full pytest suite against
-   it (not sqlite, not mocks — the same database engine used in production)
-3. **build** — builds the Docker image with the same `Dockerfile` used for deployment, to catch
-   any Dockerfile breakage early
-
-If any job fails, the ones after it don't run, and the badge at the top of this README turns red.
-
----
-
-## Deployment
-
-The API is deployed to [Railway](https://railway.app) (swap in Render if you used that instead)
-with a managed PostgreSQL database.
-
-**Live URL:** `PUT_YOUR_RAILWAY_OR_RENDER_URL_HERE`
-
-### How it was deployed
-
-1. Created a new Railway project and added a **PostgreSQL** plugin — Railway gives it a
-   `DATABASE_URL` automatically.
-2. Added a second service in the same project from this GitHub repo. Railway detects the
-   `Dockerfile` and builds from it.
-3. Set the API service's environment variables (`SECRET_KEY`, `ALGORITHM`,
-   `ACCESS_TOKEN_EXPIRE_MINUTES`, `REFRESH_TOKEN_EXPIRE_DAYS`, `CORS_ORIGINS`, `ENVIRONMENT`), and
-   pointed `DATABASE_URL` at the Postgres plugin's connection string (Railway lets you reference
-   another service's variable directly, e.g. `${{Postgres.DATABASE_URL}}`, so it's always in sync).
-4. Ran the migration against the remote database once, from a local machine with the remote
-   `DATABASE_URL` exported:
-   ```bash
-   export DATABASE_URL="<the remote Railway Postgres URL>"
-   alembic upgrade head
-   ```
-5. Railway auto-deploys on every push to `main` (this satisfies the auto-deploy stretch goal) —
-   no extra webhook setup needed once the GitHub repo is connected.
-
-### Verifying the live deployment
+Generate a production secret:
 
 ```bash
-curl https://YOUR-LIVE-URL/health
+python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
-should return `{"status": "ok", "database": "up", ...}`. From there, `/docs` on the live URL
-gives an interactive Swagger UI to exercise every endpoint the same way as local.
 
----
+## Logging and request IDs
 
-## Postman collection
+Every request gets a UUID. It appears in the `X-Request-ID` response header, in every error body
+and in every log line for that request:
 
-Import `postman_collection.json`. It includes a collection-level `{{base_url}}` variable
-(default `http://localhost:8000`) and automatically stores `{{access_token}}` /
-`{{refresh_token}}` / `{{task_id}}` from responses so requests can be run top-to-bottom without
-manual copy-pasting.
+```json
+{"timestamp": "2026-10-11T05:43:37+00:00", "level": "WARNING", "logger": "task_api",
+ "message": "POST /api/v1/auth/login -> 429", "request_id": "94a5264d-06f1-417f-b523-9f9b8296cf24",
+ "method": "POST", "path": "/api/v1/auth/login", "status_code": 429,
+ "duration_ms": 1.16, "client_ip": "198.51.100.7"}
+```
+
+When someone reports a problem, ask for the `request_id` and search the logs for it.
+Log levels: `INFO` for 2xx/3xx, `WARNING` for 4xx, `ERROR` for 5xx. Tracebacks are logged but never
+sent to the client.
+
+## Error tracking with Sentry
+
+1. Create a free project at sentry.io (platform: *FastAPI*) and copy its **DSN**.
+2. Set `SENTRY_DSN` on the server (Railway: *Variables*), and redeploy.
+3. **Prove it works** with a deliberate error:
+   1. Set `ENABLE_DEBUG_ROUTES=true` and redeploy.
+   2. Open `https://<your-url>/api/v1/debug/sentry-test`. You get a safe `500` with a `request_id`.
+   3. In Sentry, a `ZeroDivisionError: Deliberate Sentry test error` appears, tagged with that same
+      `request_id`.
+   4. **Remove `ENABLE_DEBUG_ROUTES`** again.
+
+Sentry is configured with `send_default_pii=False` and `max_request_body_size="never"`, so
+passwords in request bodies are never sent. The test suite includes an automated version of this
+check (`tests/test_observability.py`).
+
+## Tests
+
+```bash
+pytest                                              # all tests
+pytest --cov=app --cov-report=term-missing          # with coverage
+make coverage                                       # also writes an HTML report to htmlcov/
+```
+
+158 tests, 97.6% coverage (CI fails below 85%):
+
+| File | Covers |
+|---|---|
+| `test_auth.py`, `test_auth_hardening.py` | register/login/refresh, forged, expired and wrong-type tokens, `alg: none`, inactive users, password rules, admin access |
+| `test_tasks.py`, `test_health_and_tasks_extra.py` | CRUD, ownership (user B cannot touch user A's tasks), pagination, filters |
+| `test_sanitization.py` | XSS payloads, SQL-injection strings, LIKE wildcards |
+| `test_security.py` | security headers, CORS, body-size limit, HSTS |
+| `test_rate_limit.py` | `429` after the limit, per-IP buckets, spoofed headers ignored |
+| `test_request_id_and_logging.py` | request IDs, log fields, log-forging protection |
+| `test_observability.py` | safe 500s, Sentry capture |
+| `test_config.py`, `test_openapi.py`, `test_migrations.py` | startup checks, every endpoint documented, migrations up/down and in sync with the models |
+
+The tests use a separate database whose name must end in `_test`. It is created automatically,
+and the tests refuse to run against anything else because they wipe it.
+
+## Deploying to Railway
+
+The service is already deployed; this is how to redeploy or recreate it.
+
+1. **Set the variables** on the API service (Railway: *Variables*):
+   - `SECRET_KEY`: a **fresh random value of 32+ characters** (see above). The app will not
+     start in production with a short or placeholder key.
+   - `ENVIRONMENT=production`
+   - `DATABASE_URL`: reference the Postgres service, `${{Postgres.DATABASE_URL}}`. If this URL
+     starts with `postgresql://`, change it to `postgresql+psycopg2://`.
+   - `CORS_ORIGINS`: the origins of any web client (the Android app does not need CORS).
+   - `SENTRY_DSN`: optional.
+2. **Run migrations** against the Railway database whenever the schema changes (this release adds
+   migration `0002`):
+   ```bash
+   export DATABASE_URL="<the Railway Postgres URL, postgresql+psycopg2://…>"
+   alembic upgrade head
+   ```
+   You can also set `alembic upgrade head` as the service's *Pre-deploy command* if your
+   Railway settings show one.
+3. **Deploy.** Railway rebuilds on every push to `main`.
+4. **Check:** `GET /health` returns `{"status":"ok","database":"up",…}`.
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| Deploy crashes at startup with `SECRET_KEY must be a random string of at least 32 characters` | Intended safety check. Set a strong `SECRET_KEY` |
+| The task list is slow once users have thousands of tasks | Migration `0002` (the list index) has not been applied to the Railway database. Nothing breaks without it; it only affects speed |
+| `429 Too many requests` while testing | Login/register/refresh are limited per IP (5/min by default). Wait for `Retry-After` |
+| Everyone gets `429` at once in production | The proxy IP is being used for all users. Check `client_ip` in the logs and that `TRUST_PROXY_HEADERS` is on |
+| `database "taskdb_test" does not exist` | Should not happen (it is created automatically); check the DB user can create databases |
+| Swagger **Authorize** rejects the token | Paste only the token, without the word `Bearer` |
+
+## Project structure
+
+```
+app/
+  core/          security (JWT, bcrypt), rate limiting, logging, sanitizing, Sentry, client IP
+  models/        SQLAlchemy tables
+  schemas/       Pydantic request/response models (validation + sanitizing)
+  repositories/  all database queries, owner-scoped
+  services/      business logic
+  routers/       HTTP endpoints and OpenAPI docs
+  middleware.py  request ID, security headers, request logging, body limit
+  exceptions.py  error classes and the one JSON error shape
+alembic/         migrations (0001 schema, 0002 task-list index)
+tests/           158 tests
+docs/            architecture, auth sequence diagram, ADR, performance notes, demo script
+```
+
+## More documentation
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): layers, request lifecycle, error shape, database
+- [docs/SEQUENCE_AUTH.md](docs/SEQUENCE_AUTH.md): register, login, refresh and expiry sequence diagram
+- [docs/adr/0001-pyjwt-instead-of-python-jose.md](docs/adr/0001-pyjwt-instead-of-python-jose.md): a decision record
+- [docs/PERFORMANCE.md](docs/PERFORMANCE.md): index measurements and a load test
+- [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md): the 15-minute demo
+- [SECURITY.md](SECURITY.md): controls, audit history and known limitations
+
+## Known limitations
+
+See [SECURITY.md](SECURITY.md#known-limitations-honest-list). In short: rate-limit counters are
+in memory (single instance), refresh tokens cannot be revoked, and there is no email verification
+or password reset.

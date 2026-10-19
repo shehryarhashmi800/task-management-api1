@@ -1,9 +1,12 @@
+"""Business logic for registration, login, token refresh and current-user lookup."""
+
 import uuid
 
-from jose import JWTError
 from sqlalchemy.orm import Session
 
 from app.core.security import (
+    DUMMY_PASSWORD_HASH,
+    TokenError,
     create_access_token,
     create_refresh_token,
     decode_token,
@@ -23,11 +26,15 @@ from app.schemas.user import UserCreate
 
 
 class AuthService:
+    """Authentication operations, built on the user repository."""
+
     def __init__(self, db: Session):
+        """Create the service for one database session."""
         self.db = db
         self.users = UserRepository(db)
 
     def register(self, data: UserCreate) -> User:
+        """Create a new user, or raise AlreadyExistsError if email/username is taken."""
         if self.users.get_by_email(data.email):
             raise AlreadyExistsError("A user with this email already exists")
         if self.users.get_by_username(data.username):
@@ -41,14 +48,23 @@ class AuthService:
         return self.users.create(user)
 
     def authenticate(self, email: str, password: str) -> User:
+        """Check an email and password and return the user.
+
+        A hash is checked even when the email is unknown, so the response time
+        does not reveal which emails are registered.
+        """
         user = self.users.get_by_email(email)
-        if not user or not verify_password(password, user.hashed_password):
+        if not user:
+            verify_password(password, DUMMY_PASSWORD_HASH)
+            raise InvalidCredentialsError()
+        if not verify_password(password, user.hashed_password):
             raise InvalidCredentialsError()
         if not user.is_active:
             raise InactiveUserError()
         return user
 
     def login(self, email: str, password: str) -> TokenResponse:
+        """Log a user in and return an access token and a refresh token."""
         user = self.authenticate(email, password)
         return TokenResponse(
             access_token=create_access_token(user.id),
@@ -56,36 +72,34 @@ class AuthService:
         )
 
     def refresh_access_token(self, refresh_token: str) -> str:
+        """Exchange a valid refresh token for a new access token."""
         try:
             payload = decode_token(refresh_token, expected_type="refresh")
-        except (JWTError, ValueError):
-            raise InvalidTokenError("Invalid or expired refresh token")
+        except (TokenError, ValueError):
+            raise InvalidTokenError("Invalid or expired refresh token") from None
 
-        user_id = payload.get("sub")
-        try:
-            user = self.users.get(uuid.UUID(user_id))
-        except (ValueError, TypeError):
-            user = None
-
+        user = self._user_from_subject(payload.get("sub"))
         if not user or not user.is_active:
             raise InvalidTokenError("User no longer exists or is inactive")
 
         return create_access_token(user.id)
 
     def get_current_user(self, access_token: str) -> User:
+        """Return the user an access token belongs to, or raise InvalidTokenError."""
         try:
             payload = decode_token(access_token, expected_type="access")
-        except (JWTError, ValueError):
-            raise InvalidTokenError()
+        except (TokenError, ValueError):
+            raise InvalidTokenError() from None
 
-        user_id = payload.get("sub")
-        try:
-            user = self.users.get(uuid.UUID(user_id))
-        except (ValueError, TypeError):
-            user = None
-
+        user = self._user_from_subject(payload.get("sub"))
         if not user:
             raise InvalidTokenError("User no longer exists")
         if not user.is_active:
             raise InactiveUserError()
         return user
+
+    def _user_from_subject(self, subject) -> User | None:
+        try:
+            return self.users.get(uuid.UUID(subject))
+        except (ValueError, TypeError):
+            return None
